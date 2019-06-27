@@ -1,7 +1,5 @@
 from sys import path as paths
 
-from src.data import make_dataset
-
 def get_counts(sequence):
     """
         counts items in a list
