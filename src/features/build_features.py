@@ -1,7 +1,6 @@
-import json
-from typing import List, Any, Tuple
+from sys import path as paths
 
-rawData = '../data/raw/fighters.json'
+from src.data import make_dataset
 
 def get_counts(sequence):
     """
@@ -24,14 +23,10 @@ def get_counts(sequence):
         else:
             counts[x] = 1
 
-    value_key_pairs: List[Tuple[Any, int]] = [(item,count) for item,count in counts.items()]
+    value_key_pairs = [(item,count) for item,count in counts.items()]
 
     return value_key_pairs
 
 #data sets
 
 
-weights = [fighter['weight'] for fighter in fighters]
-
-
-print(get_counts(weights))
