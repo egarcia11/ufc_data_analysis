@@ -1,5 +1,5 @@
 from bs4 import BeautifulSoup, SoupStrainer
-import extract_fighter_urls
+import file_manager as fm
 import json
 import string
 import decimal
@@ -74,7 +74,7 @@ def get_fighter_statistics(www):
 	for i,stat in enumerate(fighterStats):
 		#searching fighterstats is made easier by the fact that we know the order of each statistic
 		if i is 0:
-			height = clean_data(' '.join(stat[1:4]),i)
+			height = clean_height(' '.join(stat[1:4]))
 		elif i is 1:
 			weight = clean_data(stat[1])
 		elif i is 2:
@@ -112,13 +112,25 @@ def get_fighter_statistics(www):
 
 	return fighterDict
 
+def clean_height(data):
+	cleanData = [integer for integer in data if integer.isnumeric()]
+	try:
+		feet = cleanData[0]
+		inches = ''.join(cleanData[1:])
+		heightFeet = float(feet) + float(inches)/12.0
+		return heightFeet
+	except:
+		return None
+
 def clean_data(data,*i):
 	'''cleans data from '%' and '/' and converts unicode data to a float'''
 	digits = [integer for integer in data if integer.isnumeric() or '.' in integer]
 	if len(digits) >= 1:
+		print(digits)
 		if i is 0: #handles height
+			print(digits)
 			heightInFeet = (float(digits[0]) + float(digits[1]/12))
-			return heightInFeet
+			return round(heightInFeet,2)
 		else: #handles everything else
 			cleandigits = ''.join(digits)
 			return float(cleandigits)
@@ -203,14 +215,18 @@ def clean_record(data):
 if __name__ == '__main__':
 
 	#obtain fighter links
-	all_links = [line.strip("\n") for line in open("fighter_urls")]
+
+	URLSfilePath = fm.get_absolute_path('data/raw/fighter_urls')
+
+	print(URLSfilePath)
+
+	all_links = [line.strip("\n") for line in open(URLSfilePath)]
 	all_links = remove_duplicates(all_links)
 
 	#loading fighter links into outfile
-	with open('fighters.json','w') as outfile:
+	with open('fighters1.json','w') as outfile:
 		for i,link in enumerate(all_links):
 			fighter = get_fighter_statistics(link)
 			json.dump(fighter, outfile)
 			outfile.write('\n')
 			print(i/len(all_links)*100, '% complete')
-			
