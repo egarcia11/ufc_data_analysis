@@ -2,7 +2,6 @@
  a different directory. It works across different platforms."""
 
 from pathlib import Path
-from sys import path
 
 def get_absolute_path(path_in_working_dir):
     """

@@ -6,45 +6,57 @@ import decimal
 import requests
 
 def get_children_urls(www):
-	'''gets the list of URLS contained within a website's tbody tag'''
-	wb_soup = get_website_soup(www)
-	container = wb_soup.tbody
-	tags = container.find_all('a')
+	'''
+	Parses the referenced hypertext within a website's tbody tag.
+
+		string www: a website who's desired referenced hypertext
+		is within the 'tbody' html-tag.
+
+	yields: str
+	'''
+
+	wb_soup = get_website_soup(www,'tbody')
+	tags = wb_soup.find_all('a')
+
 	for tag in tags:
 		yield tag.get('href')
-	#return [tag.attrs['href'] for tag in tags]
 
-def alphabetize_urls(URL, var_index):
-	'''Generator of a list of alphabatized websites. Replaces 1 letter
-	in the parent URL with every letter of the alphabet.
-	string parentURL: the full URL of ANY version of the parent website
-	int var_index: index of the varying letter in the URL'''
-	website = list(URL)
+def alphabetize_urls(baseURL, var_index):
+	'''
+	Generates 24 URLS by replacing the indexed variable of the baseURL with letters (A-Z).
+
+		string URL: the full URL of ANY version of the parent website.
+		int var_index: index of the varying letter in the URL.
+
+	yields: str
+	'''
 	for letter in string.ascii_lowercase:
-		website[var_index] = letter
-		yield ''.join(website)
+		baseURL[var_index] = letter
+		yield ''.join(baseURL)
 
 def get_fighter_urls():
-	'''returns the list of all of the fighter links'''
+	'''
+	returns the list of all of the fighter links
+	'''
 	urls=[]
-	BASESITE = 'http://ufcstats.com/statistics/fighters?char=a&page=all'
-	for url in alphabetize_urls(BASESITE,-10):
+	baseURL = 'http://ufcstats.com/statistics/fighters?char=a&page=all'
+	for url in alphabetize_urls(baseURL,-10):
 			urls.extend(get_children_urls(url))
 	return urls
 
 def remove_duplicates(x):
 	return list(dict.fromkeys(x))
 
-
 def get_website_soup(URL, segment):
-	"""Parses  a segment from a URL
-		string: segment = name of the tag enclosing the desired segment
-		string: url = desired url"""
-
+	"""
+	Parses  a segment from a URL
+		string: segment = name of the tag enclosing the desired segment to be parsed
+		string: url =  url of the website
+	returns: beautifulsoup4
+	"""
 	response = check_response(requests.get(URL))
 	strainer = SoupStrainer(segment)
 	soup = BeautifulSoup(response.content,'lxml',parse_only=strainer)
-
 	return soup
 
 def check_response(response):
@@ -55,7 +67,7 @@ def check_response(response):
 		print("Error: {}".format(response.reason))
 
 def get_fighter_statistics(www):
-	url = www
+
 	wb_soup = get_website_soup(www,'section')
 
 	'''Parsing fighter's name'''
@@ -105,7 +117,7 @@ def get_fighter_statistics(www):
 		elif i is 13:
 			subavg = clean_data(stat[2])
 
-	fighterDict = dict(url = url,name = name,wins = wins,draws = draws,
+	fighterDict = dict(url = www,name = name,wins = wins,draws = draws,
 		losses = losses,height = height,weight = weight,reach = reach,
 		stance = stance,dob = dob,slpm = slpm,stracc = stracc,sapm = sapm,
 		strdef = strdef,tdavg = tdavg,tdacc = tdacc,tddef = tddef,subavg = subavg)
@@ -118,27 +130,25 @@ def clean_height(data):
 		feet = cleanData[0]
 		inches = ''.join(cleanData[1:])
 		heightFeet = float(feet) + float(inches)/12.0
-		return heightFeet
+		return round(heightFeet,2)
 	except:
 		return None
 
-def clean_data(data,*i):
+def clean_data(data):
 	'''cleans data from '%' and '/' and converts unicode data to a float'''
 	digits = [integer for integer in data if integer.isnumeric() or '.' in integer]
+
 	if len(digits) >= 1:
-		print(digits)
-		if i is 0: #handles height
-			print(digits)
-			heightInFeet = (float(digits[0]) + float(digits[1]/12))
-			return round(heightInFeet,2)
-		else: #handles everything else
-			cleandigits = ''.join(digits)
-			return float(cleandigits)
+		cleandigits = ''.join(digits)
+		return float(cleandigits)
 	else:
 		return None
 
 def clean_date(date):
-	'''convers string into an sql date object'''
+	'''
+	cleans and reformats the date
+		date string: the unformated version of the date
+	'''
 	stringDate = ''.join(date[1:4])
 	if '--' not in stringDate:
 
@@ -214,19 +224,18 @@ def clean_record(data):
 
 if __name__ == '__main__':
 
-	#obtain fighter links
-
+	#load the fighter URL's that have already been extracted.
 	URLSfilePath = fm.get_absolute_path('data/raw/fighter_urls')
-
 	print(URLSfilePath)
 
 	all_links = [line.strip("\n") for line in open(URLSfilePath)]
 	all_links = remove_duplicates(all_links)
 
-	#loading fighter links into outfile
-	with open('fighters1.json','w') as outfile:
+	#exporting fighter statistics
+	with open('fighters.json','w') as outfile:
 		for i,link in enumerate(all_links):
 			fighter = get_fighter_statistics(link)
 			json.dump(fighter, outfile)
 			outfile.write('\n')
+
 			print(i/len(all_links)*100, '% complete')
