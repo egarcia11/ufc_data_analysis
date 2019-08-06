@@ -3,20 +3,23 @@
 import os
 import pandas as pd
 from numpy import NaN
+from pathlib import Path
 
 class identifyers(object):
     #Extract name, sex and births of every name in the names-files
-    files = [f for f in os.listdir("./names") if os.path.isfile(os.path.join("./names", f))]
-    namesFrame = pd.DataFrame()
+    names_path = "src/classifier/names/"
+    project_os_path = Path(__file__).parent.parent.parent.joinpath(names_path)
+
+    files_in_dir = os.listdir(project_os_path)
     pieces = []
-    for file in files:
-        pieces.append(pd.read_csv(os.path.join("./names",file), names=['name','sex','births']))
+    for file in files_in_dir:
+        pieces.append(pd.read_csv(os.path.join(project_os_path,file), names=['name','sex','births']))
     data = pd.concat(pieces,ignore_index=True)
     namesFrame = data[['name','sex','births']]
 
     #Group contents by name and stratify the dataset by male and female
     malesFrame = namesFrame[(namesFrame.sex == 'M')].groupby('name')
-    femalesFrame = namesFrame[(namesFrame.sex == 'F')].groupby('name')
+    femalesFrame = namesFrame[(namesFrame.sex == 'F')].groupby('name')\
 
     #Get the intersection of the males and females sets. Intersection represents unisex names
     females_set = set(namesFrame[namesFrame.sex == 'F']['name'])
@@ -36,11 +39,8 @@ class identifyers(object):
         probability_m = male_births/total_births
         probability_f = 1 - probability_m
 
-        if element == 'Esteban':
-            print(male_births,female_births)
-
         #only add the name back to the male or female set if they meet the probability threshold
-        threshold = .97
+        threshold = .99
         if probability_m >= threshold:
             unique_males.add(element)
         elif probability_f >= threshold:
