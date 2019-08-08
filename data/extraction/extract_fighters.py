@@ -5,23 +5,9 @@ import requests
 from requests.exceptions import HTTPError
 from bs4 import BeautifulSoup, SoupStrainer
 from numpy import NaN
-
 import pandas as pd
 import json
 import string
-
-"""
-	Description
-
-	Parameters
-	----------
-	arg : type
-		description
-	Returns
-	-------
-	type
-		beautifulSoup object parsed from the desired segment
-	"""
 
 def website_soup(url, segment):
 	"""
@@ -50,12 +36,12 @@ def website_soup(url, segment):
 		print("Other error occured")
 
 
-class UrlExtraction(object):
+class UrlExtractor(object):
 
-	# TODO: class docstring please
-	# TODO: have the urls be an attribute of urlExtraction
+	base_site = 'http://ufcstats.com/statistics/fighters?char=a&page=all'
 
-	BASESITE = 'http://ufcstats.com/statistics/fighters?char=a&page=all'
+	def __init__(self):
+		self.all_fighter_urls = self.get_all_fighter_urls()
 
 	@staticmethod
 	def alphabetize_urls(url, var_index):
@@ -101,7 +87,7 @@ class UrlExtraction(object):
 
 	def get_all_fighter_urls(self):
 		"""
-		Creates a list of all the fighter's url in the ufc website.
+		Creates a list of ALL the fighter urls in the ufcstats.com website.
 
 		Returns:
 		---------
@@ -110,13 +96,39 @@ class UrlExtraction(object):
 			with no duplicates
 		"""
 		all_urls=[]
-		for url in self.alphabetize_urls(self.BASESITE,-10):
+		for url in self.alphabetize_urls(self.base_site, -10):
 				all_urls.extend(self.get_children_urls(url))
-		return all_urls
+
+		return list(dict.fromkeys(all_urls))
 
 
-class AtributesExtraction(object):
-	#TODO: class docstring please
+class Extract(UrlExtractor):
+
+	def __init__(self):
+		super().__init__()
+		url_extractor = UrlExtractor()
+		self.all_fighter_urls = url_extractor.all_fighter_urls
+
+	def dump_fighters(self):
+		"""
+		dumps all fighter statistics into a json file
+
+		Writes:
+		-----
+		json file
+			json file containing all scraped fighter statistics
+		"""
+		with open('new.json','w') as outfile:
+			count = 0
+			for i,link in enumerate(self.all_fighter_urls):
+				fighter = self.get_fighter_statistics(link)
+				json.dump(fighter, outfile)
+				outfile.write('\n')
+				print(i/len(self.all_fighter_urls)*100, '% complete')
+				count += 1
+				if count == 10:
+					break
+
 	def get_fighter_statistics(self, www):
 		"""
 		Creates a list of all the fighter's url in the ufc website.
@@ -129,15 +141,9 @@ class AtributesExtraction(object):
 		"""
 		wb_soup = website_soup(www, 'section')
 
-		'''Parsing fighter's name'''
-		name_and_record = self.get_name_and_record(wb_soup)
-		name = str(name_and_record['name'])
-
-		'''Parsing fighter's record'''
-		record = self.clean_record(name_and_record['record'])
-		wins = record['wins']
-		draws = record['draws']
-		losses = record['losses']
+		'''Parsing fighter's name and record'''
+		name, record = self.get_name_and_record(wb_soup)
+		wins, losses, draws = self.clean_record(record)
 
 		'''Parsing remaining attributes'''
 		tags = wb_soup.find_all("li", "b-list__box-list-item b-list__box-list-item_type_block")
@@ -154,7 +160,7 @@ class AtributesExtraction(object):
 				try:
 					stance = str(stat[1])
 				except:
-					stance = None
+					stance = NaN
 			elif i is 4:
 				dob = self.clean_date(stat)
 			elif i is 5:
@@ -176,28 +182,41 @@ class AtributesExtraction(object):
 			elif i is 13:
 				subavg = self.clean_data(stat[2])
 
-		fighterDict = dict(url=www, name=name, wins=wins, draws=draws,
+		fighter_dict = dict(url=www, name=name, wins=wins, draws=draws,
 						   losses=losses, height=height, weight=weight, reach=reach,
 						   stance=stance, dob=dob, slpm=slpm, stracc=stracc, sapm=sapm,
 						   strdef=strdef, tdavg=tdavg, tdacc=tdacc, tddef=tddef, subavg=subavg)
 
-		return fighterDict
+		return fighter_dict
 
 	@staticmethod
 	def clean_height(data):
-		clean_data = [integer for integer in data if integer.isnumeric()]
+		"""
+		cleans height data coming from the ufcstats website and converts
+		the string representation of height into a float
+
+		Parameters
+		----------
+		data : str
+			data contained in the ufcstats website
+		Returns
+		-------
+		type
+			beautifulSoup object parsed from the desired segment
+		"""
 		try:
-			feet = clean_data[0]
-			inches = ''.join(clean_data[1:])
+			cleaned_data = [integer for integer in data if integer.isnumeric()]
+			feet = cleaned_data[0]
+			inches = ''.join(cleaned_data[1:])
 			height_feet = float(feet) + float(inches) / 12.0
-			return round(height_feet, 2)
+			return round(height_feet, 3)
 		except:
 			return NaN
 
 	@staticmethod
 	def clean_data(data):
 		"""
-		cleans the string and converts str to int
+		cleans the string and converts it into an int
 
 		Parameters
 		----------
@@ -206,7 +225,7 @@ class AtributesExtraction(object):
 		Returns
 		-------
 		int
-			cleaned string, converted into an int
+			string that has been converted into an float
 		"""
 		'''cleans data from '%' and '/' and converts unicode data to a float'''
 		digits = [integer for integer in data if integer.isnumeric() or '.' in integer]
@@ -215,14 +234,21 @@ class AtributesExtraction(object):
 			cleaned_digits = ''.join(digits)
 			return float(cleaned_digits)
 		else:
-			return None
+			return NaN
 
 	def clean_date(self,date):
-		#TODO: better docstring
-		'''
-		cleans and reformats the date
-			date string: the unformated version of the date
-		'''
+		"""
+		converts a string into a (mon-day-year) string format
+
+		Parameters
+		----------
+		date : str
+			date given in the ufc website in the form of "Jan 16, 1992"
+		Returns
+		-------
+		str
+			(mon-day-year) string format
+		"""
 		stringDate = ''.join(date[1:4])
 		if '--' not in stringDate:
 
@@ -237,78 +263,86 @@ class AtributesExtraction(object):
 			return None
 
 	@staticmethod
-	def get_month(date):
-	#TODO: figure out if there is a better way of doing this? or maybe move this all the way to the top?
-	#TODO: also docstring please, you piece of poop!
-		if 'Jan' in date:
+	def get_month(month):
+		"""
+		converts month's first 3 letters into a numerical month
+
+		Parameters
+		----------
+		month : str
+			3 letter representation of the month
+		Returns
+		-------
+		str
+			(mon-day-year) string format
+		"""
+		if 'Jan' in month:
 			return 1
-		elif 'Feb' in date:
+		elif 'Feb' in month:
 			return 2
-		elif 'Mar' in date:
+		elif 'Mar' in month:
 			return 3
-		elif 'Apr' in date:
+		elif 'Apr' in month:
 			return 4
-		elif 'May' in date:
+		elif 'May' in month:
 			return 5
-		elif 'Jun' in date:
+		elif 'Jun' in month:
 			return 6
-		elif 'Jul' in date:
+		elif 'Jul' in month:
 			return 7
-		elif 'Aug' in date:
+		elif 'Aug' in month:
 			return 8
-		elif 'Sep' in date:
+		elif 'Sep' in month:
 			return 9
-		elif 'oct' in date:
+		elif 'oct' in month:
 			return 10
-		elif 'Nov' in date:
+		elif 'Nov' in month:
 			return 11
-		elif 'Dec' in date:
+		elif 'Dec' in month:
 			return 12
 
 	@staticmethod
-	def get_name_and_record(self, soup):
-		#TODO: Docstring PLEASE!!!!!!
+	def get_name_and_record(soup):
+		"""
+		extracts name and fighting record from a string
+
+		Parameters
+		----------
+		soup : BeautifulSoup
+			beautifulSoup object representation of the fighter's ufc website
+		Returns
+		-------
+		str, str
+			name and record represented as strings
+		"""
 		container = soup.h2.text.split()
-		recordIndex = [i for i, attribute in enumerate(container) if attribute == 'Record:'][0]
+		record_index = [i for i, attribute in enumerate(container) if attribute == 'Record:'][0]
+		name = ' '.join(container[0:record_index])
+		record = container[record_index + 1:][0]
 
-		#TODO: replace this in the futre, maybe reverse the order of the arguments?
-		recordIndexPlus1 = recordIndex + 1
-
-		#TODO: why are you creating a dictionary here? turn this into a list, and return 2 arguments instead of a dictionary
-		nameAndRecord = dict(name='', record='')
-		nameAndRecord['name'] = ' '.join(container[0:recordIndex])
-		nameAndRecord['record'] = container[recordIndexPlus1:][0]
-
-		return nameAndRecord
+		return name, record
 
 	@staticmethod
-	def clean_record(data):
+	def clean_record(record):
+		"""
+		separates a record string in the format of (#-#-#) into 3 separate numbers
 
-		#TODO: this initializes everything to a 0, and thats important because we need to know if value is a 0 or a NaN...
-		record = dict(wins=0, losses=0, draws=0)
-		hyphenLocation = [i for i, letter in enumerate(data) if letter is '-']
+		Parameters
+		----------
+		record : str
+			string in the format of (#-#-#)
+		Returns
+		-------
+		int,int,int
+			wins losses and draws
+		"""
+		wins_draws_losses = record.split('-')
+		wins = wins_draws_losses[0]
+		losses = wins_draws_losses[1]
+		draws = wins_draws_losses[2]
 
-		temp = []
-		for i, item in enumerate(data):
-			if i is hyphenLocation[0]:
-				record['wins'] = int(''.join(temp))
-				temp = []
-				continue
-			elif i is hyphenLocation[1]:
-				record['draws'] = int(''.join(temp))
-				temp = []
-				continue
-			elif i is len(data):
-				record['losses'] = int(''.join(temp))
-			temp.append(item)
-		return record
+		return wins, losses, draws
 
 if __name__ == '__main__':
-	urlExtraction = UrlExtraction()
+	print("hello world!")
 
-	all = urlExtraction.get_all_fighter_urls()
-
-	atribuesExtraction = AtributesExtraction()
-
-	test = atribuesExtraction.get_fighter_statistics(all[1])
-	print(test)

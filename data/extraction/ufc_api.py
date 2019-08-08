@@ -1,4 +1,4 @@
-from bs4 import BeautifulSoup, SoupStrainer
+import bs4
 import file_manager as fm
 import json
 import string
@@ -55,8 +55,8 @@ def get_website_soup(URL, segment):
 	returns: beautifulsoup4
 	"""
 	response = check_response(requests.get(URL))
-	strainer = SoupStrainer(segment)
-	soup = BeautifulSoup(response.content,'lxml',parse_only=strainer)
+	strainer = bs4.SoupStrainer(segment)
+	soup = bs4.BeautifulSoup(response.content, 'lxml', parse_only=strainer)
 	return soup
 
 def check_response(response):
@@ -237,5 +237,4 @@ if __name__ == '__main__':
 			fighter = get_fighter_statistics(link)
 			json.dump(fighter, outfile)
 			outfile.write('\n')
-
 			print(i/len(all_links)*100, '% complete')
