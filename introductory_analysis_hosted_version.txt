@@ -1,0 +1,5 @@
+Hosted version of the introductory analysis in case github does not load the jupyter notebook
+
+This notebook is hosted on nbviewer
+
+https://nbviewer.jupyter.org/github/egarcia11/ufc_data_analysis/blob/master/introductory_analysis.ipynb
