@@ -102,30 +102,90 @@ class UrlExtractor(object):
         return list(dict.fromkeys(all_urls))
 
 
-class Extract(UrlExtractor):
+class UfcScraper(UrlExtractor):
 
     def __init__(self):
         super().__init__()
-        url_extractor = UrlExtractor()
-        self.all_fighter_urls = url_extractor.all_fighter_urls
 
     @staticmethod
     def get_fights_information(section_soup):
-        fights_tags = section_soup.tbody.find_all('tr')[1:]
+        """
+        Extracts the information about the fights had by a particular fighter.
 
+
+        Parameters
+        ----------
+        section_soup: BeautifulSoup
+            object containing the strained version of the fighter's website soup. strained
+            version should only have the 'section' html tag parsed from the fighter website.
+            straining can be done with the BeautifuSoup built in class called 'SoupStrainer'
+        Returns
+        ---------
+        list[dictionary]
+           list of dictionaries containing contenders, result, method time and statistics about each fight
+        """
+        fights_tags = section_soup.tbody.find_all('tr')[1:]
         all_fights = []
         for fight_tag in fights_tags:
             raw_fight_attributes = fight_tag.find_all('p')
-            extracted_attributes = [attribute.text.strip() for attribute in raw_fight_attributes]
-            fight_attributes = {'result': extracted_attributes[0], 'st': extracted_attributes[1],
-								'td': extracted_attributes[2], 'sub': extracted_attributes[3],
-								'pss': extracted_attributes[4], 'event': extracted_attributes[5],
-								'method': extracted_attributes[6], 'round': extracted_attributes[7],
-								'time': extracted_attributes[8]}
+            fight_attributes = [attribute.text.strip() for attribute in raw_fight_attributes]
+            #only extract the tag if the box contains a previous match.
+            #sometimes a box might contain information about a future match, we do not want to save that
+            #information, yet... in the future we will.
+            if len(fight_attributes) == 17:
+                fight_attributes = {
+                                    'contenders': [fight_attributes[1], fight_attributes[2]],
+                                    'result': fight_attributes[0],
+                                    'method': fight_attributes[13],
+                                    'time': fight_attributes[16],
+                                    'fight_stats': [
+                                                    dict(name=fight_attributes[0],
+                                                         st=fight_attributes[3],
+                                                         td=fight_attributes[5],
+                                                         sub=fight_attributes[7],
+                                                         pss=fight_attributes[9]),
+                                                    dict(name=fight_attributes[1],
+                                                         st=fight_attributes[4],
+                                                         td=fight_attributes[6],
+                                                         sub=fight_attributes[8],
+                                                         pss=fight_attributes[10])
+                                                    ]
 
-            all_fights.append(fight_attributes)
-
+                                    }
+                all_fights.append(fight_attributes)
         return all_fights
+
+    def dump_fights_and_fighters(self):
+        self.dump_fighters()
+        self.dump_fights()
+
+    def dump_fights(self):
+        """
+        dumps all fighter statistics into a json file
+
+        Writes:
+        -----
+        json file
+            json file containing all scraped fighter statistics
+        """
+        with open('fights.json', 'w') as outfile:
+            fights_contenders = []
+
+            for i, link in enumerate(self.all_fighter_urls):
+                fights = self.get_fights_information(website_soup(link,'section'))
+                for fight in fights:
+                    contenders = fight['contenders']
+                    fights_contenders.append(contenders)
+                    print(contenders[0])
+                    #filter out duplicates
+                    condition1 = [fight['contenders'][0], fight['contenders'][1]] in fights_contenders
+                    condition2 = [fight['contenders'][1], fight['contenders'][0]] in fights_contenders
+                    if condition1 or condition2:
+                        #writting unique fights to file
+                        json.dump(fight, outfile)
+                        outfile.write('\n')
+
+                print(i / len(self.all_fighter_urls) * 100, '% complete')
 
     def dump_fighters(self):
         """
@@ -136,7 +196,7 @@ class Extract(UrlExtractor):
 		json file
 			json file containing all scraped fighter statistics
 		"""
-        with open('new.json', 'w') as outfile:
+        with open('fighters.json', 'w') as outfile:
             pass
         for i, link in enumerate(self.all_fighter_urls):
             fighter = self.get_fighter_statistics(link)
@@ -196,12 +256,11 @@ class Extract(UrlExtractor):
             elif i is 13:
                 subavg = self.clean_data(stat[2])
 
-        fight_info = self.get_fights_information(wb_soup)
         fighter_dict = dict(url=www, name=name, wins=wins, draws=draws,
                             losses=losses, height=height, weight=weight, reach=reach,
                             stance=stance, dob=dob, slpm=slpm, stracc=stracc, sapm=sapm,
                             strdef=strdef, tdavg=tdavg, tdacc=tdacc, tddef=tddef, subavg=subavg,
-                            fight_info=fight_info)
+                            )
 
         return fighter_dict
 
